@@ -94,6 +94,36 @@ export function loadUserData(session, setCompleted, setNotes) {
 
 // ─── Problema 1: Courses Meta via Supabase (instead of localStorage) ───
 
+export function normalizeCoursesMeta(courses = []) {
+  if (!Array.isArray(courses)) return [];
+
+  return courses.map((course, courseIndex) => ({
+    id: String(course?.id || `course_${courseIndex + 1}`),
+    title: String(course?.title || 'Curso sin título'),
+    description: String(course?.description || ''),
+    thumbnail: course?.thumbnail || '',
+    category: String(course?.category || 'Prosperidad'),
+    duration: String(course?.duration || '0h 0m'),
+    lessons: Array.isArray(course?.lessons)
+      ? course.lessons.map((lesson, lessonIndex) => ({
+          id: String(lesson?.id || `lesson_${courseIndex + 1}_${lessonIndex + 1}`),
+          title: String(lesson?.title || 'Clase sin título'),
+          description: String(lesson?.description || ''),
+          dayUnlock: Number.isFinite(Number(lesson?.dayUnlock)) ? Number(lesson.dayUnlock) : 0,
+          duration: String(lesson?.duration || '0m'),
+          youtubeUrl: typeof lesson?.youtubeUrl === 'string' ? lesson.youtubeUrl : '',
+          localVideoUrl: typeof lesson?.localVideoUrl === 'string' ? lesson.localVideoUrl : '',
+          materials: Array.isArray(lesson?.materials)
+            ? lesson.materials.map((material, materialIndex) => ({
+                name: String(material?.name || `Material ${materialIndex + 1}`),
+                url: typeof material?.url === 'string' ? material.url : '',
+              }))
+            : [],
+        }))
+      : [],
+  }));
+}
+
 /**
  * Load courses metadata from Supabase.
  * Returns the courses array or null if not found.
@@ -111,7 +141,7 @@ export async function loadCoursesMeta() {
       return null;
     }
 
-    return data?.data || null;
+    return data?.data ? normalizeCoursesMeta(data.data) : null;
   } catch (err) {
     console.error('Error loading courses_meta:', err);
     return null;
@@ -125,7 +155,7 @@ export async function loadCoursesMeta() {
 export async function saveCoursesMeta(courses) {
   try {
     // Strip non-serializable fields (like imported images) before saving
-    const cleanCourses = courses.map(c => ({
+    const cleanCourses = normalizeCoursesMeta(courses).map(c => ({
       ...c,
       thumbnail: typeof c.thumbnail === 'string' ? c.thumbnail : '',
     }));

@@ -13,7 +13,7 @@ import Toast from './src/components/Toast.jsx';
 import HomePage from './src/pages/HomePage.jsx';
 import PlayerPage from './src/pages/PlayerPage.jsx';
 import AdminPage from './src/pages/AdminPage.jsx';
-import { saveProgress, saveUserNote, loadUserData, createDebouncedSave, loadCoursesMeta, saveCoursesMeta } from './src/lib/storage.js';
+import { saveProgress, saveUserNote, loadUserData, createDebouncedSave, loadCoursesMeta, saveCoursesMeta, normalizeCoursesMeta } from './src/lib/storage.js';
 
 const INITIAL_COURSES = [
   { id: 'course_1', title: 'La Llave del Poder', description: 'Descubre las claves ocultas de la manifestación y cómo activar la frecuencia de la abundancia en tu vida diaria.', thumbnail: product1, category: 'Manifestación', duration: '3h 45m', lessons: [
@@ -87,7 +87,7 @@ export default function App() {
         const remoteCourses = await loadCoursesMeta();
         if (remoteCourses && remoteCourses.length > 0) {
           // Merge thumbnails from INITIAL_COURSES (images are local imports, not serializable)
-          const merged = remoteCourses.map(rc => {
+          const merged = normalizeCoursesMeta(remoteCourses).map(rc => {
             const initial = INITIAL_COURSES.find(ic => ic.id === rc.id);
             return { ...rc, thumbnail: initial?.thumbnail || rc.thumbnail };
           });

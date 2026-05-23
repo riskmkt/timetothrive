@@ -15,30 +15,26 @@ export function parseYouTubeUrl(input) {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  // Já é embed URL
-  if (trimmed.includes('/embed/')) {
-    const match = trimmed.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
-    if (match) return { embedUrl: `https://www.youtube.com/embed/${match[1]}`, videoId: match[1] };
+  const extractVideoId = (value) => {
+    const match = value.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/live\/|\/v\/)([a-zA-Z0-9_-]{11})/);
+    return match?.[1] || null;
+  };
+
+  const directVideoId = extractVideoId(trimmed);
+  if (directVideoId) {
+    return { embedUrl: `https://www.youtube.com/embed/${directVideoId}`, videoId: directVideoId };
   }
 
-  // youtu.be/XXXXX
-  if (trimmed.includes('youtu.be/')) {
-    const match = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-    if (match) return { embedUrl: `https://www.youtube.com/embed/${match[1]}`, videoId: match[1] };
-  }
-
-  // youtube.com/shorts/XXXXX
-  if (trimmed.includes('/shorts/')) {
-    const match = trimmed.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
-    if (match) return { embedUrl: `https://www.youtube.com/embed/${match[1]}`, videoId: match[1] };
-  }
-
-  // youtube.com/watch?v=XXXXX
-  if (trimmed.includes('youtube.com/watch')) {
+  if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
     try {
-      const url = new URL(trimmed);
+      const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+      const url = new URL(normalizedUrl);
       const v = url.searchParams.get('v');
-      if (v && v.length === 11) return { embedUrl: `https://www.youtube.com/embed/${v}`, videoId: v };
+      const pathVideoId = extractVideoId(url.pathname);
+      const videoId = v || pathVideoId;
+      if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return { embedUrl: `https://www.youtube.com/embed/${videoId}`, videoId };
+      }
     } catch {
       return null;
     }

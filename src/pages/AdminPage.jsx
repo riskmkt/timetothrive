@@ -46,7 +46,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
   };
 
   const deleteMaterial = (courseId, lessonId, idx) => {
-    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: c.lessons.map(l => l.id === lessonId ? { ...l, materials: l.materials.filter((_, i) => i !== idx) } : l) } : c));
+    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: (c.lessons || []).map(l => l.id === lessonId ? { ...l, materials: (l.materials || []).filter((_, i) => i !== idx) } : l) } : c));
     showToast('Material eliminado');
   };
 
@@ -73,9 +73,18 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
 
   const createLesson = (courseId) => {
     if (!newTitle) return showToast('Título obligatorio');
-    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: [...c.lessons, { id: 'lesson_' + Date.now(), title: newTitle, description: newDesc || 'Sin descripción.', dayUnlock: Number(newDay), duration: '15m', youtubeUrl: '', localVideoUrl: '', materials: [] }] } : c));
+    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: [...(c.lessons || []), { id: 'lesson_' + Date.now(), title: newTitle, description: newDesc || 'Sin descripción.', dayUnlock: Number(newDay), duration: '15m', youtubeUrl: '', localVideoUrl: '', materials: [] }] } : c));
     setNewTitle(''); setNewDesc(''); setNewDay(0);
     showToast('Clase añadida');
+  };
+
+  const updateLessonVideoUrl = (courseId, lessonId, raw) => {
+    const parsed = parseYouTubeUrl(raw);
+    const youtubeUrl = parsed ? parsed.embedUrl : raw;
+    updateCourses(courses.map(c => c.id === courseId ? {
+      ...c,
+      lessons: (c.lessons || []).map(l => l.id === lessonId ? { ...l, youtubeUrl, localVideoUrl: '' } : l),
+    } : c));
   };
 
   return (
@@ -111,8 +120,9 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
 
           <div style={{ padding: '1.5rem' }}>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text2)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Folder size={16} color="var(--accent)" /> Clases ({course.lessons.length})</h3>
-            {course.lessons.map(lesson => {
+            {(course.lessons || []).map(lesson => {
               const isOpen = expandedLessons.has(lesson.id);
+              const lessonYoutubeUrl = typeof lesson.youtubeUrl === 'string' ? lesson.youtubeUrl : '';
               return (
               <div key={lesson.id} className={`lesson-accordion ${isOpen ? 'lesson-accordion--open' : ''}`}>
                 <div className="lesson-accordion__header" onClick={() => toggleAccordion(lesson.id)}>
@@ -135,8 +145,8 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
                           Día liberación: <input type="number" value={lesson.dayUnlock} onChange={e => updateCourses(courses.map(c => c.id === course.id ? { ...c, lessons: c.lessons.map(l => l.id === lesson.id ? { ...l, dayUnlock: Number(e.target.value) } : l) } : c))} style={{ width: '60px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
                         </label>
                         <label style={{ fontSize: '0.8rem', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                          YouTube URL: <input type="text" value={lesson.youtubeUrl} onChange={e => { const raw = e.target.value; const parsed = parseYouTubeUrl(raw); updateCourses(courses.map(c => c.id === course.id ? { ...c, lessons: c.lessons.map(l => l.id === lesson.id ? { ...l, youtubeUrl: parsed ? parsed.embedUrl : raw, localVideoUrl: '' } : l) } : c)); }} placeholder="URL o ID del video" style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
-                          {lesson.youtubeUrl.includes('/embed/') && <span style={{ color: 'var(--green)', fontSize: '0.7rem' }}><Check size={12} /> OK</span>}
+                          YouTube URL: <input type="text" value={lessonYoutubeUrl} onChange={e => updateLessonVideoUrl(course.id, lesson.id, e.target.value)} placeholder="URL o ID del video" style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
+                          {lessonYoutubeUrl.includes('/embed/') && <span style={{ color: 'var(--green)', fontSize: '0.7rem' }}><Check size={12} /> OK</span>}
                         </label>
                       </div>
                       <div style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px' }}>
