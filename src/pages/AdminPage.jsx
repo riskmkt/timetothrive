@@ -13,6 +13,8 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
   const [newDay, setNewDay] = useState(0);
   const [toast, setToast] = useState(null);
   const [expandedLessons, setExpandedLessons] = useState(new Set());
+  const courseList = Array.isArray(courses) ? courses : [];
+  const getLessons = (course) => Array.isArray(course?.lessons) ? course.lessons : [];
 
   const toggleAccordion = (lessonId) => {
     setExpandedLessons(prev => {
@@ -31,7 +33,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
     const file = e.target.files[0];
     if (file && editingLessonId && editingCourseId) {
       const url = URL.createObjectURL(file);
-      updateCourses(courses.map(c => c.id === editingCourseId ? { ...c, lessons: c.lessons.map(l => l.id === editingLessonId ? { ...l, localVideoUrl: url, youtubeUrl: '' } : l) } : c));
+      updateCourses(courseList.map(c => c.id === editingCourseId ? { ...c, lessons: getLessons(c).map(l => l.id === editingLessonId ? { ...l, localVideoUrl: url, youtubeUrl: '' } : l) } : c));
       showToast('Video subido');
     }
   };
@@ -40,40 +42,52 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
     const file = e.target.files[0];
     if (file && editingLessonId && editingCourseId) {
       const url = URL.createObjectURL(file);
-      updateCourses(courses.map(c => c.id === editingCourseId ? { ...c, lessons: c.lessons.map(l => l.id === editingLessonId ? { ...l, materials: [...(l.materials || []), { name: file.name, url }] } : l) } : c));
+      updateCourses(courseList.map(c => c.id === editingCourseId ? {
+        ...c,
+        lessons: getLessons(c).map(l => {
+          const materials = Array.isArray(l.materials) ? l.materials : [];
+          return l.id === editingLessonId ? { ...l, materials: [...materials, { name: file.name, url }] } : l;
+        }),
+      } : c));
       showToast('Material añadido');
     }
   };
 
   const deleteMaterial = (courseId, lessonId, idx) => {
-    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: (c.lessons || []).map(l => l.id === lessonId ? { ...l, materials: (l.materials || []).filter((_, i) => i !== idx) } : l) } : c));
+    updateCourses(courseList.map(c => c.id === courseId ? {
+      ...c,
+      lessons: getLessons(c).map(l => {
+        const materials = Array.isArray(l.materials) ? l.materials : [];
+        return l.id === lessonId ? { ...l, materials: materials.filter((_, i) => i !== idx) } : l;
+      }),
+    } : c));
     showToast('Material eliminado');
   };
 
   const deleteLesson = (courseId, lessonId) => {
     if (confirm('Eliminar esta clase?')) {
-      updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: c.lessons.filter(l => l.id !== lessonId) } : c));
+      updateCourses(courseList.map(c => c.id === courseId ? { ...c, lessons: getLessons(c).filter(l => l.id !== lessonId) } : c));
       showToast('Clase eliminada');
     }
   };
 
   const deleteCourse = (courseId) => {
     if (confirm('Eliminar ESTE CURSO COMPLETO?')) {
-      updateCourses(courses.filter(c => c.id !== courseId));
+      updateCourses(courseList.filter(c => c.id !== courseId));
       showToast('Curso eliminado');
     }
   };
 
   const createCourse = () => {
     if (!newCourseTitle) return showToast('Título obligatorio');
-    updateCourses([...courses, { id: 'course_' + Date.now(), title: newCourseTitle, description: 'Descripción del curso.', thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=600', category: 'Prosperidad', duration: '0h 0m', lessons: [] }]);
+    updateCourses([...courseList, { id: 'course_' + Date.now(), title: newCourseTitle, description: 'Descripción del curso.', thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=600', category: 'Prosperidad', duration: '0h 0m', lessons: [] }]);
     setNewCourseTitle('');
     showToast('Curso creado');
   };
 
   const createLesson = (courseId) => {
     if (!newTitle) return showToast('Título obligatorio');
-    updateCourses(courses.map(c => c.id === courseId ? { ...c, lessons: [...(c.lessons || []), { id: 'lesson_' + Date.now(), title: newTitle, description: newDesc || 'Sin descripción.', dayUnlock: Number(newDay), duration: '15m', youtubeUrl: '', localVideoUrl: '', materials: [] }] } : c));
+    updateCourses(courseList.map(c => c.id === courseId ? { ...c, lessons: [...getLessons(c), { id: 'lesson_' + Date.now(), title: newTitle, description: newDesc || 'Sin descripción.', dayUnlock: Number(newDay), duration: '15m', youtubeUrl: '', localVideoUrl: '', materials: [] }] } : c));
     setNewTitle(''); setNewDesc(''); setNewDay(0);
     showToast('Clase añadida');
   };
@@ -81,9 +95,9 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
   const updateLessonVideoUrl = (courseId, lessonId, raw) => {
     const parsed = parseYouTubeUrl(raw);
     const youtubeUrl = parsed ? parsed.embedUrl : raw;
-    updateCourses(courses.map(c => c.id === courseId ? {
+    updateCourses(courseList.map(c => c.id === courseId ? {
       ...c,
-      lessons: (c.lessons || []).map(l => l.id === lessonId ? { ...l, youtubeUrl, localVideoUrl: '' } : l),
+      lessons: getLessons(c).map(l => l.id === lessonId ? { ...l, youtubeUrl, localVideoUrl: '' } : l),
     } : c));
   };
 
@@ -108,21 +122,22 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
         </div>
       </div>
 
-      {courses.map(course => (
+      {courseList.map(course => (
         <div key={course.id} className="desc-card" style={{ marginBottom: '2.5rem', border: '1px solid var(--border)', padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold' }}>EDITANDO CURSO</span>
-              <input value={course.title} onChange={e => updateCourses(courses.map(c => c.id === course.id ? { ...c, title: e.target.value } : c))} style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed var(--border)', padding: '4px 0', color: 'white', fontWeight: 800, fontSize: '1.25rem', width: '100%', outline: 'none' }} />
+              <input value={course.title || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, title: e.target.value } : c))} style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed var(--border)', padding: '4px 0', color: 'white', fontWeight: 800, fontSize: '1.25rem', width: '100%', outline: 'none' }} />
             </div>
             <button className="btn btn--ghost" style={{ width: 'auto', color: '#EF4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={() => deleteCourse(course.id)}><Trash2 size={16} /> Eliminar Curso</button>
           </div>
 
           <div style={{ padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text2)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Folder size={16} color="var(--accent)" /> Clases ({course.lessons.length})</h3>
-            {(course.lessons || []).map(lesson => {
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text2)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Folder size={16} color="var(--accent)" /> Clases ({getLessons(course).length})</h3>
+            {getLessons(course).map(lesson => {
               const isOpen = expandedLessons.has(lesson.id);
               const lessonYoutubeUrl = typeof lesson.youtubeUrl === 'string' ? lesson.youtubeUrl : '';
+              const lessonMaterials = Array.isArray(lesson.materials) ? lesson.materials : [];
               return (
               <div key={lesson.id} className={`lesson-accordion ${isOpen ? 'lesson-accordion--open' : ''}`}>
                 <div className="lesson-accordion__header" onClick={() => toggleAccordion(lesson.id)}>
@@ -138,11 +153,11 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
                 <div className="lesson-accordion__body">
                   <div className="lesson-accordion__content">
                     <div style={{ flex: 1, minWidth: '280px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <input value={lesson.title} onChange={e => updateCourses(courses.map(c => c.id === course.id ? { ...c, lessons: c.lessons.map(l => l.id === lesson.id ? { ...l, title: e.target.value } : l) } : c))} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'white', borderRadius: '6px', fontWeight: 'bold', outline: 'none' }} />
-                      <textarea value={lesson.description} onChange={e => updateCourses(courses.map(c => c.id === course.id ? { ...c, lessons: c.lessons.map(l => l.id === lesson.id ? { ...l, description: e.target.value } : l) } : c))} placeholder="Descripción..." style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'var(--text2)', borderRadius: '6px', minHeight: '60px', outline: 'none', resize: 'vertical' }} />
+                      <input value={lesson.title || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, title: e.target.value } : l) } : c))} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'white', borderRadius: '6px', fontWeight: 'bold', outline: 'none' }} />
+                      <textarea value={lesson.description || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, description: e.target.value } : l) } : c))} placeholder="Descripción..." style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'var(--text2)', borderRadius: '6px', minHeight: '60px', outline: 'none', resize: 'vertical' }} />
                       <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                         <label style={{ fontSize: '0.8rem', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          Día liberación: <input type="number" value={lesson.dayUnlock} onChange={e => updateCourses(courses.map(c => c.id === course.id ? { ...c, lessons: c.lessons.map(l => l.id === lesson.id ? { ...l, dayUnlock: Number(e.target.value) } : l) } : c))} style={{ width: '60px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
+                          Día liberación: <input type="number" value={lesson.dayUnlock || 0} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, dayUnlock: Number(e.target.value) } : l) } : c))} style={{ width: '60px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
                         </label>
                         <label style={{ fontSize: '0.8rem', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
                           YouTube URL: <input type="text" value={lessonYoutubeUrl} onChange={e => updateLessonVideoUrl(course.id, lesson.id, e.target.value)} placeholder="URL o ID del video" style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
@@ -151,8 +166,8 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
                       </div>
                       <div style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px' }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text2)', marginBottom: '0.5rem' }}>Materiales:</div>
-                        {(!lesson.materials || lesson.materials.length === 0) && <div style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>Ninguno</div>}
-                        {lesson.materials?.map((mat, idx) => (
+                        {lessonMaterials.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>Ninguno</div>}
+                        {lessonMaterials.map((mat, idx) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px' }}>
                             <span><FileText size={12} color="var(--accent)" /> {mat.name}</span>
                             <button style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer' }} onClick={() => deleteMaterial(course.id, lesson.id, idx)}><X size={14} /></button>

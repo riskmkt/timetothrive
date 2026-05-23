@@ -139,7 +139,8 @@ export default function App() {
   const openPlayer = (courseId, lessonId) => {
     setActiveCourseId(courseId);
     const course = courses.find(c => c.id === courseId);
-    setActiveLessonId(lessonId || course?.lessons[0]?.id);
+    const lessons = Array.isArray(course?.lessons) ? course.lessons : [];
+    setActiveLessonId(lessonId || lessons[0]?.id || null);
     setPlayerTab('description');
     setView('player');
   };
@@ -147,10 +148,11 @@ export default function App() {
   const navigateLesson = (direction) => {
     const course = courses.find(c => c.id === activeCourseId);
     if (!course) return;
-    const currentIdx = course.lessons.findIndex(l => l.id === activeLessonId);
+    const lessons = Array.isArray(course.lessons) ? course.lessons : [];
+    const currentIdx = lessons.findIndex(l => l.id === activeLessonId);
     const newIdx = currentIdx + direction;
-    if (newIdx >= 0 && newIdx < course.lessons.length) {
-      setActiveLessonId(course.lessons[newIdx].id);
+    if (newIdx >= 0 && newIdx < lessons.length) {
+      setActiveLessonId(lessons[newIdx].id);
       setPlayerTab('description');
     }
   };

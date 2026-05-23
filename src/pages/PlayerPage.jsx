@@ -3,19 +3,21 @@ import { Video, Check, ChevronLeft, ChevronRight, FileText, Lock } from 'lucide-
 import { parseYouTubeUrl } from '../lib/youtube.js';
 
 export default function PlayerPage({ course, activeLessonId, setActiveLessonId, completed, toggleCompleted, notes, saveNote, playerTab, setPlayerTab, daysSincePurchase, navigateLesson }) {
-  const activeLesson = course.lessons.find(l => l.id === activeLessonId) || course.lessons[0];
-  const currentIndex = course.lessons.findIndex(l => l.id === activeLesson?.id);
+  const lessons = Array.isArray(course?.lessons) ? course.lessons : [];
+  const activeLesson = lessons.find(l => l.id === activeLessonId) || lessons[0];
+  const materials = Array.isArray(activeLesson?.materials) ? activeLesson.materials : [];
+  const currentIndex = lessons.findIndex(l => l.id === activeLesson?.id);
   const isFirst = currentIndex === 0;
-  const isLast = currentIndex === course.lessons.length - 1;
-  const completedCount = course.lessons.filter(l => completed[l.id]).length;
-  const progress = Math.round((completedCount / course.lessons.length) * 100) || 0;
+  const isLast = currentIndex === lessons.length - 1;
+  const completedCount = lessons.filter(l => completed[l.id]).length;
+  const progress = Math.round((completedCount / lessons.length) * 100) || 0;
 
   if (!activeLesson) {
     return (
       <div className="lesson-page lesson-page--empty">
         <main className="content">
           <div className="desc-card">
-            <h3>{course.title}</h3>
+            <h3>{course?.title || 'Curso sin título'}</h3>
             <p>Este curso todavía no tiene clases publicadas. Añade clases en el panel administrativo para liberar el contenido.</p>
           </div>
         </main>
@@ -26,8 +28,8 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
   return (
     <div className="lesson-page">
       <aside className="sidebar">
-        <h2 className="sidebar__title">{course.title}</h2>
-        <p className="sidebar__subtitle">{course.category || 'Membros'}</p>
+        <h2 className="sidebar__title">{course?.title || 'Curso sin título'}</h2>
+        <p className="sidebar__subtitle">{course?.category || 'Membros'}</p>
         <div className="sidebar__progress-header">
           <span className="sidebar__progress-label">Progresso</span>
           <span className="sidebar__progress-val">{progress}%</span>
@@ -35,10 +37,10 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
         <div className="sidebar__progress-bar">
           <div className="sidebar__progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
-        <div className="sidebar__progress-count">{completedCount} de {course.lessons.length} clases completadas</div>
+        <div className="sidebar__progress-count">{completedCount} de {lessons.length} clases completadas</div>
         <div className="module">
           <div className="module__title">Contenido del Curso</div>
-          {course.lessons.map((lesson, idx) => {
+          {lessons.map((lesson, idx) => {
             const isLessonActive = lesson.id === activeLesson.id;
             const isLessonCompleted = completed[lesson.id];
             const isLessonLocked = daysSincePurchase < lesson.dayUnlock;
@@ -80,7 +82,7 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
         <div className="tabs">
           {['description', 'materials', 'notes'].map(tab => (
             <button key={tab} className={`tab-btn ${playerTab === tab ? 'tab-btn--active' : ''}`} onClick={() => setPlayerTab(tab)}>
-              {tab === 'description' ? 'Descripción' : tab === 'materials' ? `Materiales (${activeLesson?.materials?.length || 0})` : 'Notas'}
+              {tab === 'description' ? 'Descripción' : tab === 'materials' ? `Materiales (${materials.length})` : 'Notas'}
             </button>
           ))}
         </div>
@@ -91,9 +93,9 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
           <div className={`tab-panel ${playerTab === 'materials' ? 'tab-panel--active' : ''}`}>
             <div className="materials">
               <div className="materials__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 600 }}><FileText size={20} color="var(--accent)" /><span>Materiales para Descargar</span></div>
-              {(!activeLesson?.materials || activeLesson.materials.length === 0) ? <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ningún material de apoyo adjunto a esta clase.</p> : (
+              {materials.length === 0 ? <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ningún material de apoyo adjunto a esta clase.</p> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {activeLesson.materials.map((mat, idx) => {
+                  {materials.map((mat, idx) => {
                     const hasUrl = mat.url && mat.url !== '#';
                     return hasUrl ? (
                       <a key={idx} href={mat.url} target="_blank" rel="noopener noreferrer" className="material-item">

@@ -4,6 +4,8 @@ import { X, Play, Star, Folder, Clock, Lock, Check } from 'lucide-react';
 export default function DetailsModal({ course, onClose, onOpenPlayer, daysSincePurchase = 999 }) {
   if (!course) return null;
 
+  const lessons = Array.isArray(course.lessons) ? course.lessons : [];
+
   return (
     <div
       className="modal-overlay"
@@ -47,7 +49,7 @@ export default function DetailsModal({ course, onClose, onOpenPlayer, daysSinceP
 
           <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2rem', color: 'var(--text2)', fontSize: '0.85rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Star size={16} color="var(--gold)" style={{ fill: 'var(--gold)' }} /> 5.0 Estrellas</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Folder size={16} color="var(--accent)" /> {course.lessons.length} Clases</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Folder size={16} color="var(--accent)" /> {lessons.length} Clases</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={16} color="var(--accent)" /> {course.duration}</span>
           </div>
 
@@ -57,8 +59,8 @@ export default function DetailsModal({ course, onClose, onOpenPlayer, daysSinceP
 
           <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', color: 'var(--text)' }}>Estructura del Curso</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {course.lessons.length === 0 && <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ninguna clase registrada todavía.</p>}
-            {course.lessons.map((lesson, idx) => {
+            {lessons.length === 0 && <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ninguna clase registrada todavía.</p>}
+            {lessons.map((lesson, idx) => {
               const isUnlocked = daysSincePurchase >= lesson.dayUnlock;
               return (
                 <div key={lesson.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', opacity: isUnlocked ? 1 : 0.55 }}>
