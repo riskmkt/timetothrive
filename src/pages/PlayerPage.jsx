@@ -1,15 +1,27 @@
-import React, { useState, useRef } from 'react';
-import { Video, Check, ChevronLeft, ChevronRight, FileText, Lock, Play, Folder } from 'lucide-react';
+import React from 'react';
+import { Video, Check, ChevronLeft, ChevronRight, FileText, Lock } from 'lucide-react';
 import { parseYouTubeUrl } from '../lib/youtube.js';
-import { supabase } from '../lib/supabaseClient.js';
 
-export default function PlayerPage({ course, activeLessonId, setActiveLessonId, completed, toggleCompleted, notes, saveNote, playerTab, setPlayerTab, daysSincePurchase, navigateLesson, session, activeCourseId }) {
+export default function PlayerPage({ course, activeLessonId, setActiveLessonId, completed, toggleCompleted, notes, saveNote, playerTab, setPlayerTab, daysSincePurchase, navigateLesson }) {
   const activeLesson = course.lessons.find(l => l.id === activeLessonId) || course.lessons[0];
   const currentIndex = course.lessons.findIndex(l => l.id === activeLesson?.id);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === course.lessons.length - 1;
   const completedCount = course.lessons.filter(l => completed[l.id]).length;
   const progress = Math.round((completedCount / course.lessons.length) * 100) || 0;
+
+  if (!activeLesson) {
+    return (
+      <div className="lesson-page lesson-page--empty">
+        <main className="content">
+          <div className="desc-card">
+            <h3>{course.title}</h3>
+            <p>Este curso todavía no tiene clases publicadas. Añade clases en el panel administrativo para liberar el contenido.</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="lesson-page">
@@ -81,11 +93,18 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
               <div className="materials__title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontWeight: 600 }}><FileText size={20} color="var(--accent)" /><span>Materiales para Descargar</span></div>
               {(!activeLesson?.materials || activeLesson.materials.length === 0) ? <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ningún material de apoyo adjunto a esta clase.</p> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {activeLesson.materials.map((mat, idx) => (
-                    <a key={idx} href={mat.url} target="_blank" rel="noopener noreferrer" className="material-item">
-                      <FileText size={18} /><span style={{ flex: 1 }}>{mat.name}</span><ChevronRight size={16} />
-                    </a>
-                  ))}
+                  {activeLesson.materials.map((mat, idx) => {
+                    const hasUrl = mat.url && mat.url !== '#';
+                    return hasUrl ? (
+                      <a key={idx} href={mat.url} target="_blank" rel="noopener noreferrer" className="material-item">
+                        <FileText size={18} /><span style={{ flex: 1 }}>{mat.name}</span><ChevronRight size={16} />
+                      </a>
+                    ) : (
+                      <div key={idx} className="material-item material-item--disabled" aria-disabled="true">
+                        <FileText size={18} /><span style={{ flex: 1 }}>{mat.name}</span><span>En breve</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

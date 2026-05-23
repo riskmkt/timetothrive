@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Play, Star, Folder, Clock, Lock, Check } from 'lucide-react';
 
-export default function DetailsModal({ course, onClose, onOpenPlayer, daysSincePurchase }) {
+export default function DetailsModal({ course, onClose, onOpenPlayer, daysSincePurchase = 999 }) {
   if (!course) return null;
 
   return (

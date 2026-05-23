@@ -9,9 +9,9 @@ const Footer = () => {
           <p className="footer__desc">Transforma tu mentalidad y manifiesta la vida de tus sueños.</p>
         </div>
         <div className="footer__links">
-          <a href="#">Términos de Uso</a>
-          <a href="#">Política de Privacidad</a>
-          <a href="#">Soporte</a>
+          <span>Términos de Uso</span>
+          <span>Política de Privacidad</span>
+          <a href="mailto:suporte@horadeprosperar.com">Soporte</a>
         </div>
       </div>
       <div className="footer__bottom">

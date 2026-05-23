@@ -5,7 +5,7 @@ import product2 from './assets/product2.png';
 import product3 from './assets/product3.png';
 import product4 from './assets/product4.png';
 import Auth from './Auth.jsx';
-import { supabase } from './supabaseClient.js';
+import { supabase } from './src/lib/supabaseClient.js';
 import TopBar from './src/components/TopBar.jsx';
 import Drawer from './src/components/Drawer.jsx';
 import DetailsModal from './src/components/DetailsModal.jsx';
@@ -185,8 +185,9 @@ export default function App() {
       {detailsCourse && (
         <DetailsModal
           course={detailsCourse}
+          daysSincePurchase={daysSincePurchase}
           onClose={() => setDetailsCourse(null)}
-          onOpenPlayer={(courseId) => { setDetailsCourse(null); openPlayer(courseId); }}
+          onOpenPlayer={(courseId, lessonId) => { setDetailsCourse(null); openPlayer(courseId, lessonId); }}
         />
       )}
 
@@ -223,6 +224,15 @@ export default function App() {
           setCourses={setCourses}
           setView={setView}
           saveToStorage={saveToStorage}
+        />
+      )}
+
+      {view === 'admin' && !isAdmin && (
+        <HomePage
+          courses={courses}
+          loading={false}
+          onOpenPlayer={openPlayer}
+          onShowDetails={(course) => setDetailsCourse(course)}
         />
       )}
 

@@ -35,9 +35,13 @@ export function parseYouTubeUrl(input) {
 
   // youtube.com/watch?v=XXXXX
   if (trimmed.includes('youtube.com/watch')) {
-    const url = new URL(trimmed);
-    const v = url.searchParams.get('v');
-    if (v && v.length === 11) return { embedUrl: `https://www.youtube.com/embed/${v}`, videoId: v };
+    try {
+      const url = new URL(trimmed);
+      const v = url.searchParams.get('v');
+      if (v && v.length === 11) return { embedUrl: `https://www.youtube.com/embed/${v}`, videoId: v };
+    } catch {
+      return null;
+    }
   }
 
   // Apenas o ID (11 caracteres)

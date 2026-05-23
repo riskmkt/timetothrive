@@ -1,7 +1,14 @@
 import React from 'react';
 import { ChevronLeft, Crown, Settings } from 'lucide-react';
 
-export default function TopBar({ view, setView, title, subtitle, onOpenDrawer }) {
+export default function TopBar({ view, setView, title, subtitle, onOpenDrawer, session, isAdmin }) {
+  const username = session?.user?.email
+    ? session.user.email.split('@')[0].split('.')[0]
+    : 'Alumno Premium';
+  const displayName = username === 'Alumno Premium'
+    ? username
+    : username.charAt(0).toUpperCase() + username.slice(1);
+
   return (
     <header className="topnav">
       <div className="topnav__inner">
@@ -17,18 +24,16 @@ export default function TopBar({ view, setView, title, subtitle, onOpenDrawer })
           </div>
         </div>
         <div className="topnav__right">
-          <button className="topnav__icon-btn" onClick={() => setView('admin')} title="Panel Administrativo">
-            <Settings size={20} />
-          </button>
+          {isAdmin && (
+            <button className="topnav__icon-btn" onClick={() => setView('admin')} title="Panel Administrativo" aria-label="Panel Administrativo">
+              <Settings size={20} />
+            </button>
+          )}
           <div className="topnav__user" onClick={onOpenDrawer}>
             <div className="topnav__avatar" style={{ background: 'var(--accent)' }}>
               <Crown size={14} color="white" />
             </div>
-            <span className="topnav__username">
-              {session?.user?.email 
-                ? session.user.email.split('@')[0].split('.')[0].charAt(0).toUpperCase() + session.user.email.split('@')[0].split('.')[0].slice(1) 
-                : 'Alumno Premium'}
-            </span>
+            <span className="topnav__username">{displayName}</span>
           </div>
         </div>
       </div>
