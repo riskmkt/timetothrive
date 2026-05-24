@@ -1,13 +1,15 @@
 import React, { useRef, useState } from 'react';
-import { ChevronLeft, Folder, Upload, Plus, Trash2, FileText, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, Folder, Upload, Plus, Trash2, FileText, X, Check, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { createDebouncedSave } from '../lib/storage.js';
 import { parseYouTubeUrl } from '../lib/youtube.js';
+import { getCourseDuration, withComputedCourseDurations } from '../lib/duration.js';
 
-const emptyLessonDraft = { title: '', description: '', dayUnlock: 0 };
+const emptyLessonDraft = { title: '', description: '', dayUnlock: 0, duration: '15m' };
 
 export default function AdminPage({ courses, setCourses, setView, saveToStorage, coursesCloudStatus }) {
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
+  const coverInputRef = useRef(null);
   const debouncedSaveRef = useRef(createDebouncedSave(900));
   const [editingLessonId, setEditingLessonId] = useState(null);
   const [editingCourseId, setEditingCourseId] = useState(null);
@@ -35,12 +37,13 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
   };
 
   const updateCourses = (updated, { immediate = false } = {}) => {
-    setCourses(updated);
+    const computed = withComputedCourseDurations(updated);
+    setCourses(computed);
     if (immediate) {
-      saveToStorage('courses_meta', updated);
+      saveToStorage('courses_meta', computed);
       return;
     }
-    debouncedSaveRef.current(() => saveToStorage('courses_meta', updated));
+    debouncedSaveRef.current(() => saveToStorage('courses_meta', computed));
   };
 
   const toggleAccordion = (lessonId) => {
@@ -87,6 +90,25 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
     showToast('Material añadido para esta sesión');
   };
 
+  const handleCoverUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingCourseId) return;
+    if (!file.type.startsWith('image/')) return showToast('Selecciona una imagen válida');
+    if (file.size > 2 * 1024 * 1024) return showToast('Imagen muy pesada. Usa hasta 2MB');
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateCourses(courseList.map(course => course.id === editingCourseId ? {
+        ...course,
+        thumbnail: String(reader.result || ''),
+      } : course), { immediate: true });
+      showToast('Capa del curso actualizada');
+    };
+    reader.onerror = () => showToast('No fue posible leer la imagen');
+    reader.readAsDataURL(file);
+  };
+
   const deleteMaterial = (courseId, lessonId, idx) => {
     updateCourses(courseList.map(course => course.id === courseId ? {
       ...course,
@@ -123,7 +145,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
       description: 'Descripción del curso.',
       thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=600',
       category: 'Prosperidad',
-      duration: '0h 0m',
+      duration: '1h 00m',
       lessons: [],
     }], { immediate: true });
     setNewCourseTitle('');
@@ -140,7 +162,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
       title,
       description: draft.description.trim() || 'Sin descripción.',
       dayUnlock: Number.isFinite(Number(draft.dayUnlock)) ? Number(draft.dayUnlock) : 0,
-      duration: '15m',
+      duration: draft.duration.trim() || '15m',
       youtubeUrl: '',
       localVideoUrl: '',
       materials: [],
@@ -178,6 +200,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
 
       <input type="file" accept="video/mp4,video/webm" ref={videoInputRef} style={{ display: 'none' }} onChange={handleVideoUpload} />
       <input type="file" accept=".pdf,.doc,.docx,.zip,.mp3" ref={materialInputRef} style={{ display: 'none' }} onChange={handleMaterialUpload} />
+      <input type="file" accept="image/png,image/jpeg,image/webp" ref={coverInputRef} style={{ display: 'none' }} onChange={handleCoverUpload} />
 
       <section className={`admin-cloud-status ${isCloudReady ? 'admin-cloud-status--ready' : ''} ${isCheckingCloud ? 'admin-cloud-status--checking' : 'admin-cloud-status--local'}`}>
         <div>
@@ -202,6 +225,7 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
       {courseList.map(course => {
         const lessons = getLessons(course);
         const draft = getDraft(course.id);
+        const courseDuration = getCourseDuration(course);
 
         return (
           <section key={course.id} className="desc-card admin-course-card">
@@ -219,6 +243,29 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
             </div>
 
             <div className="admin-course-body">
+              <div className="admin-cover-editor">
+                <div className="admin-cover-editor__preview">
+                  {course.thumbnail ? <img src={course.thumbnail} alt={`Capa de ${course.title || 'curso'}`} /> : <ImageIcon size={28} />}
+                </div>
+                <div className="admin-cover-editor__fields">
+                  <span className="admin-eyebrow">CAPA E DURACIÓN</span>
+                  <label className="admin-cover-url">
+                    <span>URL de la capa</span>
+                    <input
+                      value={typeof course.thumbnail === 'string' ? course.thumbnail : ''}
+                      onChange={event => updateCourses(courseList.map(item => item.id === course.id ? { ...item, thumbnail: event.target.value } : item))}
+                      placeholder="https://..."
+                    />
+                  </label>
+                  <div className="admin-cover-editor__meta">
+                    <span>{courseDuration}</span>
+                    <button type="button" className="btn btn--ghost" onClick={() => { setEditingCourseId(course.id); coverInputRef.current?.click(); }}>
+                      <Upload size={14} /> Subir Capa
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <h3 className="admin-section-title">
                 <Folder size={16} color="var(--accent)" /> Clases ({lessons.length})
               </h3>
@@ -262,6 +309,15 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
                                 type="number"
                                 value={Number.isFinite(Number(lesson.dayUnlock)) ? Number(lesson.dayUnlock) : 0}
                                 onChange={event => updateLesson(course.id, lesson.id, { dayUnlock: Number(event.target.value) })}
+                              />
+                            </label>
+                            <label>
+                              <span>Duración</span>
+                              <input
+                                type="text"
+                                value={lesson.duration || '15m'}
+                                onChange={event => updateLesson(course.id, lesson.id, { duration: event.target.value })}
+                                placeholder="25m"
                               />
                             </label>
                             <label className="admin-url-field">
@@ -330,6 +386,15 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage,
                       type="number"
                       value={draft.dayUnlock}
                       onChange={event => updateDraft(course.id, { dayUnlock: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Duración</span>
+                    <input
+                      type="text"
+                      value={draft.duration}
+                      onChange={event => updateDraft(course.id, { duration: event.target.value })}
+                      placeholder="15m"
                     />
                   </label>
                   <button className="btn btn--primary" onClick={() => createLesson(course.id)}>

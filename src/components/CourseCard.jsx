@@ -1,7 +1,10 @@
 import React from 'react';
 import { Play, Check, Star, Clock } from 'lucide-react';
+import { getCourseDuration } from '../lib/duration.js';
 
 export default function CourseCard({ course, isNew, onOpenPlayer, onShowDetails }) {
+  const duration = getCourseDuration(course);
+
   return (
     <div className="pcard">
       <div className="pcard__img-wrap">
@@ -21,7 +24,7 @@ export default function CourseCard({ course, isNew, onOpenPlayer, onShowDetails 
           </div>
           <div className="pcard__time">
             <Clock size={14} />
-            <span>{course.duration || '3h'}</span>
+            <span>{duration}</span>
           </div>
         </div>
         <div className="pcard__actions">

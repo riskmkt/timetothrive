@@ -56,8 +56,8 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
           })}
         </div>
       </aside>
-      <main className="content">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <main className="content player-content">
+        <div className="player-lesson-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Clase {currentIndex + 1}</span>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginTop: '0.25rem' }}>{activeLesson?.title}</h2>

@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient.js';
+import { getCourseDuration } from './duration.js';
 
 const COURSES_META_STORAGE_KEY = 'timetothrive:courses_meta';
 export const COURSES_META_TABLE_SQL_PATH = 'supabase/courses_meta.sql';
@@ -184,20 +185,14 @@ export function loadUserData(session, setCompleted, setNotes) {
 export function normalizeCoursesMeta(courses = []) {
   if (!Array.isArray(courses)) return [];
 
-  return courses.map((course, courseIndex) => ({
-    id: String(course?.id || `course_${courseIndex + 1}`),
-    title: String(course?.title || 'Curso sin título'),
-    description: String(course?.description || ''),
-    thumbnail: course?.thumbnail || '',
-    category: String(course?.category || 'Prosperidad'),
-    duration: String(course?.duration || '0h 0m'),
-    lessons: Array.isArray(course?.lessons)
+  return courses.map((course, courseIndex) => {
+    const lessons = Array.isArray(course?.lessons)
       ? course.lessons.map((lesson, lessonIndex) => ({
           id: String(lesson?.id || `lesson_${courseIndex + 1}_${lessonIndex + 1}`),
           title: String(lesson?.title || 'Clase sin título'),
           description: String(lesson?.description || ''),
           dayUnlock: Number.isFinite(Number(lesson?.dayUnlock)) ? Number(lesson.dayUnlock) : 0,
-          duration: String(lesson?.duration || '0m'),
+          duration: String(lesson?.duration || '15m'),
           youtubeUrl: typeof lesson?.youtubeUrl === 'string' ? lesson.youtubeUrl : '',
           localVideoUrl: typeof lesson?.localVideoUrl === 'string' ? lesson.localVideoUrl : '',
           materials: Array.isArray(lesson?.materials)
@@ -207,8 +202,20 @@ export function normalizeCoursesMeta(courses = []) {
               }))
             : [],
         }))
-      : [],
-  }));
+      : [];
+
+    const normalizedCourse = {
+      id: String(course?.id || `course_${courseIndex + 1}`),
+      title: String(course?.title || 'Curso sin título'),
+      description: String(course?.description || ''),
+      thumbnail: course?.thumbnail || '',
+      category: String(course?.category || 'Prosperidad'),
+      duration: String(course?.duration || ''),
+      lessons,
+    };
+
+    return { ...normalizedCourse, duration: getCourseDuration(normalizedCourse) };
+  });
 }
 
 /**

@@ -94,7 +94,7 @@ export default function App() {
           // Merge thumbnails from INITIAL_COURSES (images are local imports, not serializable)
           const merged = normalizeCoursesMeta(remoteCourses).map(rc => {
             const initial = INITIAL_COURSES.find(ic => ic.id === rc.id);
-            return { ...rc, thumbnail: initial?.thumbnail || rc.thumbnail };
+            return { ...rc, thumbnail: rc.thumbnail || initial?.thumbnail };
           });
           setCourses(merged);
         }
