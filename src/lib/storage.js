@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient.js';
 
 const COURSES_META_STORAGE_KEY = 'timetothrive:courses_meta';
+export const COURSES_META_TABLE_SQL_PATH = 'supabase/courses_meta.sql';
 
 function canUseLocalStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -50,6 +51,40 @@ function sanitizeCoursesForPersistence(courses) {
 function logCoursesMetaFallback(context, err) {
   const code = err?.code || err?.details || err?.message;
   console.warn(`${context}; usando copia local del navegador.`, code || err);
+}
+
+export async function checkCoursesMetaCloudStatus() {
+  try {
+    const { error } = await supabase
+      .from('courses_meta')
+      .select('id,data,updated_at')
+      .eq('id', 'courses_meta')
+      .maybeSingle();
+
+    if (!error) {
+      return { cloudReady: true, reason: 'ready', message: 'Publicación global activa' };
+    }
+
+    if (error.code === 'PGRST205') {
+      return {
+        cloudReady: false,
+        reason: 'missing_table',
+        message: `Falta crear la tabla courses_meta en Supabase. Ejecuta ${COURSES_META_TABLE_SQL_PATH}.`,
+      };
+    }
+
+    return {
+      cloudReady: false,
+      reason: 'supabase_error',
+      message: error.message || 'No fue posible validar Supabase.',
+    };
+  } catch (err) {
+    return {
+      cloudReady: false,
+      reason: 'network_error',
+      message: err?.message || 'No fue posible conectar con Supabase.',
+    };
+  }
 }
 
 export function createDebouncedSave(ms = 1500) {

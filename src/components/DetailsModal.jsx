@@ -1,10 +1,34 @@
-import React from 'react';
-import { X, Play, Star, Folder, Clock, Lock, Check } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Play, Star, Folder, Clock, Lock, Check, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 export default function DetailsModal({ course, onClose, onOpenPlayer, daysSincePurchase = 999 }) {
+  const lessons = Array.isArray(course?.lessons) ? course.lessons : [];
+  const [expandedSections, setExpandedSections] = useState(() => new Set(['course-info', 'course-structure']));
+  const [expandedLessons, setExpandedLessons] = useState(() => new Set(lessons[0]?.id ? [lessons[0].id] : []));
+
+  useEffect(() => {
+    setExpandedLessons(new Set(lessons[0]?.id ? [lessons[0].id] : []));
+  }, [course?.id]);
+
   if (!course) return null;
 
-  const lessons = Array.isArray(course.lessons) ? course.lessons : [];
+  const toggleSection = (sectionId) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
+  const toggleLesson = (lessonId) => {
+    setExpandedLessons(prev => {
+      const next = new Set(prev);
+      if (next.has(lessonId)) next.delete(lessonId);
+      else next.add(lessonId);
+      return next;
+    });
+  };
 
   return (
     <div
@@ -57,34 +81,109 @@ export default function DetailsModal({ course, onClose, onOpenPlayer, daysSinceP
             <Play size={18} /> Iniciar Entrenamiento
           </button>
 
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', color: 'var(--text)' }}>Estructura del Curso</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {lessons.length === 0 && <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ninguna clase registrada todavía.</p>}
-            {lessons.map((lesson, idx) => {
-              const isUnlocked = daysSincePurchase >= lesson.dayUnlock;
-              return (
-                <div key={lesson.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', opacity: isUnlocked ? 1 : 0.55 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', width: '36px', height: '36px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text2)' }}>
-                    {String(idx + 1).padStart(2, '0')}
+          <div className="course-detail-stack">
+            <section className="course-detail-card">
+              <button
+                type="button"
+                className="course-detail-card__header"
+                aria-expanded={expandedSections.has('course-info')}
+                aria-controls="course-info-panel"
+                onClick={() => toggleSection('course-info')}
+              >
+                <span>
+                  <strong>Información del curso</strong>
+                  <small>{lessons.length} clases • {course.duration || '0h 0m'}</small>
+                </span>
+                {expandedSections.has('course-info') ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+              {expandedSections.has('course-info') && (
+                <div id="course-info-panel" className="course-detail-card__body">
+                  <p>{course.description || 'Curso sin descripción registrada.'}</p>
+                  <div className="course-detail-meta-grid">
+                    <span><Folder size={14} /> {course.category || 'Prosperidad'}</span>
+                    <span><Clock size={14} /> {course.duration || '0h 0m'}</span>
+                    <span><Check size={14} /> Disponible</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>{lesson.title}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text3)', marginTop: '0.15rem' }}>{isUnlocked ? `${lesson.duration} • Liberado` : `Bloqueado (Se libera en el día ${lesson.dayUnlock})`}</div>
-                  </div>
-                  {isUnlocked ? (
-                    <button className="btn-icon" onClick={() => onOpenPlayer(course.id, lesson.id)} style={{
-                      background: 'var(--accent)', width: '32px', height: '32px', borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none',
-                      color: 'white', cursor: 'pointer'
-                    }}>
-                      <Play size={14} style={{ fill: 'white' }} />
-                    </button>
-                  ) : (
-                    <Lock size={16} color="var(--text3)" />
-                  )}
                 </div>
-              );
-            })}
+              )}
+            </section>
+
+            <section className="course-detail-card">
+              <button
+                type="button"
+                className="course-detail-card__header"
+                aria-expanded={expandedSections.has('course-structure')}
+                aria-controls="course-structure-panel"
+                onClick={() => toggleSection('course-structure')}
+              >
+                <span>
+                  <strong>Estructura del curso</strong>
+                  <small>Abre cada clase para ver detalles y materiales</small>
+                </span>
+                {expandedSections.has('course-structure') ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+
+              {expandedSections.has('course-structure') && (
+                <div id="course-structure-panel" className="course-detail-card__body course-lessons-stack">
+                  {lessons.length === 0 && <p className="course-detail-empty">Ninguna clase registrada todavía.</p>}
+                  {lessons.map((lesson, idx) => {
+                    const lessonId = lesson.id || `lesson_${idx}`;
+                    const isUnlocked = daysSincePurchase >= Number(lesson.dayUnlock || 0);
+                    const isLessonOpen = expandedLessons.has(lessonId);
+                    const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
+
+                    return (
+                      <article key={lessonId} className={`course-lesson-card ${isUnlocked ? '' : 'course-lesson-card--locked'}`}>
+                        <button
+                          type="button"
+                          className="course-lesson-card__header"
+                          aria-expanded={isLessonOpen}
+                          aria-controls={`${lessonId}-panel`}
+                          onClick={() => toggleLesson(lessonId)}
+                        >
+                          <span className="course-lesson-card__index">{String(idx + 1).padStart(2, '0')}</span>
+                          <span className="course-lesson-card__title">
+                            <strong>{lesson.title || 'Clase sin título'}</strong>
+                            <small>{isUnlocked ? `${lesson.duration || '0m'} • Liberado` : `Se libera en el día ${lesson.dayUnlock || 0}`}</small>
+                          </span>
+                          <span className="course-lesson-card__icons">
+                            {isUnlocked ? <Play size={15} /> : <Lock size={15} />}
+                            {isLessonOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                          </span>
+                        </button>
+
+                        {isLessonOpen && (
+                          <div id={`${lessonId}-panel`} className="course-lesson-card__body">
+                            <p>{lesson.description || 'Sin descripción registrada.'}</p>
+                            <div className="course-lesson-card__materials">
+                              <strong>Materiales</strong>
+                              {materials.length === 0 && <span>Ninguno</span>}
+                              {materials.map((material, materialIndex) => (
+                                <span key={`${lessonId}-material-${materialIndex}`}><FileText size={13} /> {material.name || `Material ${materialIndex + 1}`}</span>
+                              ))}
+                            </div>
+                            {isUnlocked ? (
+                              <button
+                                type="button"
+                                className="btn btn--primary course-lesson-card__play"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  onOpenPlayer(course.id, lessonId);
+                                }}
+                              >
+                                <Play size={15} /> Ver clase
+                              </button>
+                            ) : (
+                              <div className="course-lesson-card__locked-note">Clase bloqueada hasta el día {lesson.dayUnlock || 0}.</div>
+                            )}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </div>
         </div>
       </div>

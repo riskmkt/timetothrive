@@ -5,7 +5,7 @@ import { parseYouTubeUrl } from '../lib/youtube.js';
 
 const emptyLessonDraft = { title: '', description: '', dayUnlock: 0 };
 
-export default function AdminPage({ courses, setCourses, setView, saveToStorage }) {
+export default function AdminPage({ courses, setCourses, setView, saveToStorage, coursesCloudStatus }) {
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
   const debouncedSaveRef = useRef(createDebouncedSave(900));
@@ -17,6 +17,8 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
   const [expandedLessons, setExpandedLessons] = useState(new Set());
 
   const courseList = Array.isArray(courses) ? courses : [];
+  const isCloudReady = coursesCloudStatus?.cloudReady === true;
+  const isCheckingCloud = coursesCloudStatus?.cloudReady == null;
   const getLessons = (course) => Array.isArray(course?.lessons) ? course.lessons : [];
   const getDraft = (courseId) => lessonDrafts[courseId] || emptyLessonDraft;
 
@@ -176,6 +178,14 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
 
       <input type="file" accept="video/mp4,video/webm" ref={videoInputRef} style={{ display: 'none' }} onChange={handleVideoUpload} />
       <input type="file" accept=".pdf,.doc,.docx,.zip,.mp3" ref={materialInputRef} style={{ display: 'none' }} onChange={handleMaterialUpload} />
+
+      <section className={`admin-cloud-status ${isCloudReady ? 'admin-cloud-status--ready' : ''} ${isCheckingCloud ? 'admin-cloud-status--checking' : 'admin-cloud-status--local'}`}>
+        <div>
+          <span className="admin-eyebrow">{isCloudReady ? 'PUBLICACIÓN GLOBAL' : isCheckingCloud ? 'VALIDANDO PUBLICACIÓN' : 'MODO LOCAL'}</span>
+          <strong>{isCloudReady ? 'Los cambios se guardan para todos los alumnos.' : isCheckingCloud ? 'Comprobando conexión con Supabase.' : 'Tus cambios todavía no aparecen para otros usuarios.'}</strong>
+          <p>{coursesCloudStatus?.message || 'Validando conexión con Supabase...'}</p>
+        </div>
+      </section>
 
       <section className="desc-card admin-create-card">
         <h3>+ Crear Nuevo Entrenamiento</h3>

@@ -13,7 +13,7 @@ import Toast from './src/components/Toast.jsx';
 import HomePage from './src/pages/HomePage.jsx';
 import PlayerPage from './src/pages/PlayerPage.jsx';
 import AdminPage from './src/pages/AdminPage.jsx';
-import { saveProgress, saveUserNote, loadUserData, createDebouncedSave, loadCoursesMeta, saveCoursesMeta, normalizeCoursesMeta } from './src/lib/storage.js';
+import { saveProgress, saveUserNote, loadUserData, createDebouncedSave, loadCoursesMeta, saveCoursesMeta, normalizeCoursesMeta, checkCoursesMetaCloudStatus } from './src/lib/storage.js';
 
 const INITIAL_COURSES = [
   { id: 'course_1', title: 'La Llave del Poder', description: 'Descubre las claves ocultas de la manifestación y cómo activar la frecuencia de la abundancia en tu vida diaria.', thumbnail: product1, category: 'Manifestación', duration: '3h 45m', lessons: [
@@ -63,6 +63,11 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detailsCourse, setDetailsCourse] = useState(null);
   const [toast, setToast] = useState(null);
+  const [coursesCloudStatus, setCoursesCloudStatus] = useState({
+    cloudReady: null,
+    reason: 'checking',
+    message: 'Validando publicación global...',
+  });
   const [daysSincePurchase] = useState(999); // Default: all lessons unlocked
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -99,6 +104,19 @@ export default function App() {
     })();
   }, [session]);
 
+  useEffect(() => {
+    if (session?.user?.email !== ADMIN_EMAIL) return;
+
+    let active = true;
+    checkCoursesMetaCloudStatus().then(status => {
+      if (active) setCoursesCloudStatus(status);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
   // ─── Load user progress & notes ───
   useEffect(() => {
     if (!session) return;
@@ -128,7 +146,18 @@ export default function App() {
     if (key === 'courses_meta') {
       try {
         const result = await saveCoursesMeta(data);
-        showToast(result?.cloudSaved ? '✅ Cambios guardados en la nube' : '✅ Cambios guardados en este navegador');
+        setCoursesCloudStatus(result?.cloudSaved ? {
+          cloudReady: true,
+          reason: 'ready',
+          message: 'Publicación global activa',
+        } : {
+          cloudReady: false,
+          reason: result?.error?.code === 'PGRST205' ? 'missing_table' : 'local_only',
+          message: result?.error?.code === 'PGRST205'
+            ? 'Falta crear la tabla courses_meta en Supabase. Ejecuta supabase/courses_meta.sql.'
+            : 'No fue posible guardar en Supabase. Los cambios quedaron solo en este navegador.',
+        });
+        showToast(result?.cloudSaved ? '✅ Cambios guardados en la nube' : '⚠️ Guardado solo en este navegador');
       } catch (err) {
         console.error('Error saving courses:', err);
         showToast('❌ Error al guardar');
@@ -227,6 +256,7 @@ export default function App() {
           setCourses={setCourses}
           setView={setView}
           saveToStorage={saveToStorage}
+          coursesCloudStatus={coursesCloudStatus}
         />
       )}
 
