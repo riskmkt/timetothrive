@@ -45,13 +45,13 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
             const isLessonCompleted = completed[lesson.id];
             const isLessonLocked = daysSincePurchase < lesson.dayUnlock;
             return (
-              <div key={lesson.id} className={`lesson-item ${isLessonActive ? 'lesson-item--active' : ''} ${isLessonCompleted ? 'lesson-item--completed' : ''}`} style={{ opacity: isLessonLocked ? 0.6 : 1 }} onClick={() => { if (!isLessonLocked) setActiveLessonId(lesson.id); }}>
+              <button key={lesson.id} type="button" className={`lesson-item ${isLessonActive ? 'lesson-item--active' : ''} ${isLessonCompleted ? 'lesson-item--completed' : ''}`} disabled={isLessonLocked} style={{ opacity: isLessonLocked ? 0.6 : 1 }} onClick={() => setActiveLessonId(lesson.id)}>
                 <div className="lesson-item__icon">
                   {isLessonCompleted ? <Check size={12} color="white" /> : isLessonLocked ? <Lock size={12} /> : <span>{idx + 1}</span>}
                 </div>
                 <span className="lesson-item__text">{lesson.title}</span>
                 {isLessonLocked && <span className="lesson-item__badge">D{lesson.dayUnlock}</span>}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -96,14 +96,14 @@ export default function PlayerPage({ course, activeLessonId, setActiveLessonId, 
               {materials.length === 0 ? <p style={{ color: 'var(--text3)', fontSize: '0.875rem' }}>Ningún material de apoyo adjunto a esta clase.</p> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {materials.map((mat, idx) => {
-                    const hasUrl = mat.url && mat.url !== '#';
+                    const hasUrl = mat.url && mat.url !== '#' && !mat.url.startsWith('blob:');
                     return hasUrl ? (
                       <a key={idx} href={mat.url} target="_blank" rel="noopener noreferrer" className="material-item">
-                        <FileText size={18} /><span style={{ flex: 1 }}>{mat.name}</span><ChevronRight size={16} />
+                        <FileText size={18} /><span>{mat.name}</span><ChevronRight size={16} />
                       </a>
                     ) : (
                       <div key={idx} className="material-item material-item--disabled" aria-disabled="true">
-                        <FileText size={18} /><span style={{ flex: 1 }}>{mat.name}</span><span>En breve</span>
+                        <FileText size={18} /><span>{mat.name}</span><span>En breve</span>
                       </div>
                     );
                   })}

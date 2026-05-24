@@ -127,8 +127,8 @@ export default function App() {
   const saveToStorage = async (key, data) => {
     if (key === 'courses_meta') {
       try {
-        await saveCoursesMeta(data);
-        showToast('✅ Cambios guardados en la nube');
+        const result = await saveCoursesMeta(data);
+        showToast(result?.cloudSaved ? '✅ Cambios guardados en la nube' : '✅ Cambios guardados en este navegador');
       } catch (err) {
         console.error('Error saving courses:', err);
         showToast('❌ Error al guardar');
@@ -163,6 +163,7 @@ export default function App() {
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
   const activeCourse = courses.find(c => c.id === activeCourseId);
+  const activeLessons = Array.isArray(activeCourse?.lessons) ? activeCourse.lessons : [];
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -170,7 +171,7 @@ export default function App() {
         view={view}
         setView={setView}
         title={activeCourse?.title}
-        subtitle={activeCourse?.lessons?.find(l => l.id === activeLessonId)?.title}
+        subtitle={activeLessons.find(l => l.id === activeLessonId)?.title}
         onOpenDrawer={() => setDrawerOpen(true)}
         session={session}
         isAdmin={isAdmin}

@@ -1,5 +1,57 @@
 import { supabase } from './supabaseClient.js';
 
+const COURSES_META_STORAGE_KEY = 'timetothrive:courses_meta';
+
+function canUseLocalStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function loadLocalCoursesMeta() {
+  if (!canUseLocalStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(COURSES_META_STORAGE_KEY);
+    return raw ? normalizeCoursesMeta(JSON.parse(raw)) : null;
+  } catch (err) {
+    console.error('Error loading local courses_meta:', err);
+    return null;
+  }
+}
+
+function saveLocalCoursesMeta(courses) {
+  if (!canUseLocalStorage()) return false;
+  try {
+    window.localStorage.setItem(COURSES_META_STORAGE_KEY, JSON.stringify(courses));
+    return true;
+  } catch (err) {
+    console.error('Error saving local courses_meta:', err);
+    return false;
+  }
+}
+
+function isTransientUrl(url) {
+  return typeof url === 'string' && url.startsWith('blob:');
+}
+
+function sanitizeCoursesForPersistence(courses) {
+  return normalizeCoursesMeta(courses).map(course => ({
+    ...course,
+    thumbnail: typeof course.thumbnail === 'string' ? course.thumbnail : '',
+    lessons: course.lessons.map(lesson => ({
+      ...lesson,
+      localVideoUrl: isTransientUrl(lesson.localVideoUrl) ? '' : lesson.localVideoUrl,
+      materials: lesson.materials.map(material => ({
+        ...material,
+        url: isTransientUrl(material.url) ? '' : material.url,
+      })),
+    })),
+  }));
+}
+
+function logCoursesMetaFallback(context, err) {
+  const code = err?.code || err?.details || err?.message;
+  console.warn(`${context}; usando copia local del navegador.`, code || err);
+}
+
 export function createDebouncedSave(ms = 1500) {
   let timer = null;
   let pendingResolve = null;
@@ -137,14 +189,14 @@ export async function loadCoursesMeta() {
       .maybeSingle();
 
     if (error) {
-      console.error('Error loading courses_meta:', error);
-      return null;
+      logCoursesMetaFallback('No fue posible cargar courses_meta desde Supabase', error);
+      return loadLocalCoursesMeta();
     }
 
-    return data?.data ? normalizeCoursesMeta(data.data) : null;
+    return data?.data ? normalizeCoursesMeta(data.data) : loadLocalCoursesMeta();
   } catch (err) {
-    console.error('Error loading courses_meta:', err);
-    return null;
+    logCoursesMetaFallback('No fue posible cargar courses_meta desde Supabase', err);
+    return loadLocalCoursesMeta();
   }
 }
 
@@ -153,13 +205,10 @@ export async function loadCoursesMeta() {
  * Only admin should call this.
  */
 export async function saveCoursesMeta(courses) {
-  try {
-    // Strip non-serializable fields (like imported images) before saving
-    const cleanCourses = normalizeCoursesMeta(courses).map(c => ({
-      ...c,
-      thumbnail: typeof c.thumbnail === 'string' ? c.thumbnail : '',
-    }));
+  const cleanCourses = sanitizeCoursesForPersistence(courses);
+  const localSaved = saveLocalCoursesMeta(cleanCourses);
 
+  try {
     const { error } = await supabase
       .from('courses_meta')
       .upsert({
@@ -169,8 +218,9 @@ export async function saveCoursesMeta(courses) {
       }, { onConflict: 'id' });
 
     if (error) throw error;
+    return { cloudSaved: true, localSaved };
   } catch (err) {
-    console.error('Error saving courses_meta:', err);
-    throw err;
+    logCoursesMetaFallback('No fue posible guardar courses_meta en Supabase', err);
+    return { cloudSaved: false, localSaved, error: err };
   }
 }

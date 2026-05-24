@@ -1,20 +1,45 @@
 import React, { useRef, useState } from 'react';
 import { ChevronLeft, Folder, Upload, Plus, Trash2, FileText, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { createDebouncedSave } from '../lib/storage.js';
 import { parseYouTubeUrl } from '../lib/youtube.js';
+
+const emptyLessonDraft = { title: '', description: '', dayUnlock: 0 };
 
 export default function AdminPage({ courses, setCourses, setView, saveToStorage }) {
   const videoInputRef = useRef(null);
   const materialInputRef = useRef(null);
+  const debouncedSaveRef = useRef(createDebouncedSave(900));
   const [editingLessonId, setEditingLessonId] = useState(null);
   const [editingCourseId, setEditingCourseId] = useState(null);
   const [newCourseTitle, setNewCourseTitle] = useState('');
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newDay, setNewDay] = useState(0);
+  const [lessonDrafts, setLessonDrafts] = useState({});
   const [toast, setToast] = useState(null);
   const [expandedLessons, setExpandedLessons] = useState(new Set());
+
   const courseList = Array.isArray(courses) ? courses : [];
   const getLessons = (course) => Array.isArray(course?.lessons) ? course.lessons : [];
+  const getDraft = (courseId) => lessonDrafts[courseId] || emptyLessonDraft;
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const updateDraft = (courseId, patch) => {
+    setLessonDrafts(prev => ({
+      ...prev,
+      [courseId]: { ...(prev[courseId] || emptyLessonDraft), ...patch },
+    }));
+  };
+
+  const updateCourses = (updated, { immediate = false } = {}) => {
+    setCourses(updated);
+    if (immediate) {
+      saveToStorage('courses_meta', updated);
+      return;
+    }
+    debouncedSaveRef.current(() => saveToStorage('courses_meta', updated));
+  };
 
   const toggleAccordion = (lessonId) => {
     setExpandedLessons(prev => {
@@ -25,176 +50,287 @@ export default function AdminPage({ courses, setCourses, setView, saveToStorage 
     });
   };
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
-
-  const updateCourses = (updated) => { setCourses(updated); saveToStorage('courses_meta', updated); };
-
-  const handleVideoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && editingLessonId && editingCourseId) {
-      const url = URL.createObjectURL(file);
-      updateCourses(courseList.map(c => c.id === editingCourseId ? { ...c, lessons: getLessons(c).map(l => l.id === editingLessonId ? { ...l, localVideoUrl: url, youtubeUrl: '' } : l) } : c));
-      showToast('Video subido');
-    }
+  const updateLesson = (courseId, lessonId, patch, options) => {
+    updateCourses(courseList.map(course => course.id === courseId ? {
+      ...course,
+      lessons: getLessons(course).map(lesson => lesson.id === lessonId ? { ...lesson, ...patch } : lesson),
+    } : course), options);
   };
 
-  const handleMaterialUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && editingLessonId && editingCourseId) {
-      const url = URL.createObjectURL(file);
-      updateCourses(courseList.map(c => c.id === editingCourseId ? {
-        ...c,
-        lessons: getLessons(c).map(l => {
-          const materials = Array.isArray(l.materials) ? l.materials : [];
-          return l.id === editingLessonId ? { ...l, materials: [...materials, { name: file.name, url }] } : l;
-        }),
-      } : c));
-      showToast('Material añadido');
-    }
+  const handleVideoUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingLessonId || !editingCourseId) return;
+
+    const url = URL.createObjectURL(file);
+    updateLesson(editingCourseId, editingLessonId, { localVideoUrl: url, youtubeUrl: '' }, { immediate: true });
+    showToast('Video añadido para esta sesión');
+  };
+
+  const handleMaterialUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingLessonId || !editingCourseId) return;
+
+    const url = URL.createObjectURL(file);
+    updateCourses(courseList.map(course => course.id === editingCourseId ? {
+      ...course,
+      lessons: getLessons(course).map(lesson => {
+        const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
+        return lesson.id === editingLessonId
+          ? { ...lesson, materials: [...materials, { name: file.name, url, transient: true }] }
+          : lesson;
+      }),
+    } : course), { immediate: true });
+    showToast('Material añadido para esta sesión');
   };
 
   const deleteMaterial = (courseId, lessonId, idx) => {
-    updateCourses(courseList.map(c => c.id === courseId ? {
-      ...c,
-      lessons: getLessons(c).map(l => {
-        const materials = Array.isArray(l.materials) ? l.materials : [];
-        return l.id === lessonId ? { ...l, materials: materials.filter((_, i) => i !== idx) } : l;
+    updateCourses(courseList.map(course => course.id === courseId ? {
+      ...course,
+      lessons: getLessons(course).map(lesson => {
+        const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
+        return lesson.id === lessonId ? { ...lesson, materials: materials.filter((_, i) => i !== idx) } : lesson;
       }),
-    } : c));
+    } : course), { immediate: true });
     showToast('Material eliminado');
   };
 
   const deleteLesson = (courseId, lessonId) => {
-    if (confirm('Eliminar esta clase?')) {
-      updateCourses(courseList.map(c => c.id === courseId ? { ...c, lessons: getLessons(c).filter(l => l.id !== lessonId) } : c));
-      showToast('Clase eliminada');
-    }
+    if (!confirm('Eliminar esta clase?')) return;
+    updateCourses(courseList.map(course => course.id === courseId ? {
+      ...course,
+      lessons: getLessons(course).filter(lesson => lesson.id !== lessonId),
+    } : course), { immediate: true });
+    showToast('Clase eliminada');
   };
 
   const deleteCourse = (courseId) => {
-    if (confirm('Eliminar ESTE CURSO COMPLETO?')) {
-      updateCourses(courseList.filter(c => c.id !== courseId));
-      showToast('Curso eliminado');
-    }
+    if (!confirm('Eliminar ESTE CURSO COMPLETO?')) return;
+    updateCourses(courseList.filter(course => course.id !== courseId), { immediate: true });
+    showToast('Curso eliminado');
   };
 
   const createCourse = () => {
-    if (!newCourseTitle) return showToast('Título obligatorio');
-    updateCourses([...courseList, { id: 'course_' + Date.now(), title: newCourseTitle, description: 'Descripción del curso.', thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=600', category: 'Prosperidad', duration: '0h 0m', lessons: [] }]);
+    const title = newCourseTitle.trim();
+    if (!title) return showToast('Título obligatorio');
+
+    updateCourses([...courseList, {
+      id: `course_${Date.now()}`,
+      title,
+      description: 'Descripción del curso.',
+      thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&q=80&w=600',
+      category: 'Prosperidad',
+      duration: '0h 0m',
+      lessons: [],
+    }], { immediate: true });
     setNewCourseTitle('');
     showToast('Curso creado');
   };
 
   const createLesson = (courseId) => {
-    if (!newTitle) return showToast('Título obligatorio');
-    updateCourses(courseList.map(c => c.id === courseId ? { ...c, lessons: [...getLessons(c), { id: 'lesson_' + Date.now(), title: newTitle, description: newDesc || 'Sin descripción.', dayUnlock: Number(newDay), duration: '15m', youtubeUrl: '', localVideoUrl: '', materials: [] }] } : c));
-    setNewTitle(''); setNewDesc(''); setNewDay(0);
+    const draft = getDraft(courseId);
+    const title = draft.title.trim();
+    if (!title) return showToast('Título obligatorio');
+
+    const lesson = {
+      id: `lesson_${Date.now()}`,
+      title,
+      description: draft.description.trim() || 'Sin descripción.',
+      dayUnlock: Number.isFinite(Number(draft.dayUnlock)) ? Number(draft.dayUnlock) : 0,
+      duration: '15m',
+      youtubeUrl: '',
+      localVideoUrl: '',
+      materials: [],
+    };
+
+    updateCourses(courseList.map(course => course.id === courseId ? {
+      ...course,
+      lessons: [...getLessons(course), lesson],
+    } : course), { immediate: true });
+
+    setLessonDrafts(prev => ({ ...prev, [courseId]: emptyLessonDraft }));
+    setExpandedLessons(prev => new Set(prev).add(lesson.id));
     showToast('Clase añadida');
   };
 
   const updateLessonVideoUrl = (courseId, lessonId, raw) => {
     const parsed = parseYouTubeUrl(raw);
-    const youtubeUrl = parsed ? parsed.embedUrl : raw;
-    updateCourses(courseList.map(c => c.id === courseId ? {
-      ...c,
-      lessons: getLessons(c).map(l => l.id === lessonId ? { ...l, youtubeUrl, localVideoUrl: '' } : l),
-    } : c));
+    updateLesson(courseId, lessonId, {
+      youtubeUrl: parsed ? parsed.embedUrl : raw,
+      localVideoUrl: '',
+    });
   };
 
   return (
-    <div style={{ padding: '2rem 1.5rem', maxWidth: '1000px', margin: '0 auto', paddingBottom: '100px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="admin-page">
+      <div className="admin-header">
         <div>
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Administración</span>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text)' }}>Gestión de Contenido</h1>
+          <span className="admin-eyebrow">Administración</span>
+          <h1>Gestión de Contenido</h1>
         </div>
-        <button className="btn btn--ghost" style={{ width: 'auto', padding: '0.6rem 1.25rem' }} onClick={() => setView('home')}><ChevronLeft size={16} /> Volver al Inicio</button>
+        <button className="btn btn--ghost admin-back-btn" onClick={() => setView('home')}>
+          <ChevronLeft size={16} /> Volver al Inicio
+        </button>
       </div>
 
       <input type="file" accept="video/mp4,video/webm" ref={videoInputRef} style={{ display: 'none' }} onChange={handleVideoUpload} />
       <input type="file" accept=".pdf,.doc,.docx,.zip,.mp3" ref={materialInputRef} style={{ display: 'none' }} onChange={handleMaterialUpload} />
 
-      <div className="desc-card" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', marginBottom: '1rem' }}>+ Crear Nuevo Entrenamiento</h3>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <input placeholder="Nombre del nuevo curso..." value={newCourseTitle} onChange={e => setNewCourseTitle(e.target.value)} style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', padding: '0.75rem 1rem', color: 'white', borderRadius: 'var(--radius-sm)', outline: 'none' }} />
-          <button className="btn btn--primary" style={{ width: 'auto', padding: '0.75rem 1.5rem' }} onClick={createCourse}>Crear Curso</button>
+      <section className="desc-card admin-create-card">
+        <h3>+ Crear Nuevo Entrenamiento</h3>
+        <div className="admin-create-row">
+          <input
+            placeholder="Nombre del nuevo curso..."
+            value={newCourseTitle}
+            onChange={event => setNewCourseTitle(event.target.value)}
+          />
+          <button className="btn btn--primary" onClick={createCourse}>Crear Curso</button>
         </div>
-      </div>
+      </section>
 
-      {courseList.map(course => (
-        <div key={course.id} className="desc-card" style={{ marginBottom: '2.5rem', border: '1px solid var(--border)', padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold' }}>EDITANDO CURSO</span>
-              <input value={course.title || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, title: e.target.value } : c))} style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed var(--border)', padding: '4px 0', color: 'white', fontWeight: 800, fontSize: '1.25rem', width: '100%', outline: 'none' }} />
+      {courseList.map(course => {
+        const lessons = getLessons(course);
+        const draft = getDraft(course.id);
+
+        return (
+          <section key={course.id} className="desc-card admin-course-card">
+            <div className="admin-course-header">
+              <div className="admin-course-title-field">
+                <span className="admin-eyebrow">EDITANDO CURSO</span>
+                <input
+                  value={course.title || ''}
+                  onChange={event => updateCourses(courseList.map(item => item.id === course.id ? { ...item, title: event.target.value } : item))}
+                />
+              </div>
+              <button className="btn btn--ghost admin-danger-btn" onClick={() => deleteCourse(course.id)}>
+                <Trash2 size={16} /> Eliminar Curso
+              </button>
             </div>
-            <button className="btn btn--ghost" style={{ width: 'auto', color: '#EF4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={() => deleteCourse(course.id)}><Trash2 size={16} /> Eliminar Curso</button>
-          </div>
 
-          <div style={{ padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text2)', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Folder size={16} color="var(--accent)" /> Clases ({getLessons(course).length})</h3>
-            {getLessons(course).map(lesson => {
-              const isOpen = expandedLessons.has(lesson.id);
-              const lessonYoutubeUrl = typeof lesson.youtubeUrl === 'string' ? lesson.youtubeUrl : '';
-              const lessonMaterials = Array.isArray(lesson.materials) ? lesson.materials : [];
-              return (
-              <div key={lesson.id} className={`lesson-accordion ${isOpen ? 'lesson-accordion--open' : ''}`}>
-                <div className="lesson-accordion__header" onClick={() => toggleAccordion(lesson.id)}>
-                  <div className="lesson-accordion__title">
-                    <span>{lesson.title || 'Sin título'}</span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text3)' }}>({lesson.duration || '0m'})</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>Día {lesson.dayUnlock}</span>
-                    {isOpen ? <ChevronUp size={18} color="var(--text2)" /> : <ChevronDown size={18} color="var(--text2)" />}
-                  </div>
-                </div>
-                <div className="lesson-accordion__body">
-                  <div className="lesson-accordion__content">
-                    <div style={{ flex: 1, minWidth: '280px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <input value={lesson.title || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, title: e.target.value } : l) } : c))} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'white', borderRadius: '6px', fontWeight: 'bold', outline: 'none' }} />
-                      <textarea value={lesson.description || ''} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, description: e.target.value } : l) } : c))} placeholder="Descripción..." style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'var(--text2)', borderRadius: '6px', minHeight: '60px', outline: 'none', resize: 'vertical' }} />
-                      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          Día liberación: <input type="number" value={lesson.dayUnlock || 0} onChange={e => updateCourses(courseList.map(c => c.id === course.id ? { ...c, lessons: getLessons(c).map(l => l.id === lesson.id ? { ...l, dayUnlock: Number(e.target.value) } : l) } : c))} style={{ width: '60px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
-                        </label>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                          YouTube URL: <input type="text" value={lessonYoutubeUrl} onChange={e => updateLessonVideoUrl(course.id, lesson.id, e.target.value)} placeholder="URL o ID del video" style={{ flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '4px 8px', borderRadius: '4px', outline: 'none' }} />
-                          {lessonYoutubeUrl.includes('/embed/') && <span style={{ color: 'var(--green)', fontSize: '0.7rem' }}><Check size={12} /> OK</span>}
-                        </label>
-                      </div>
-                      <div style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.15)', borderRadius: '6px' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text2)', marginBottom: '0.5rem' }}>Materiales:</div>
-                        {lessonMaterials.length === 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>Ninguno</div>}
-                        {lessonMaterials.map((mat, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px' }}>
-                            <span><FileText size={12} color="var(--accent)" /> {mat.name}</span>
-                            <button style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer' }} onClick={() => deleteMaterial(course.id, lesson.id, idx)}><X size={14} /></button>
+            <div className="admin-course-body">
+              <h3 className="admin-section-title">
+                <Folder size={16} color="var(--accent)" /> Clases ({lessons.length})
+              </h3>
+
+              {lessons.map(lesson => {
+                const isOpen = expandedLessons.has(lesson.id);
+                const lessonYoutubeUrl = typeof lesson.youtubeUrl === 'string' ? lesson.youtubeUrl : '';
+                const lessonMaterials = Array.isArray(lesson.materials) ? lesson.materials : [];
+
+                return (
+                  <div key={lesson.id} className={`lesson-accordion ${isOpen ? 'lesson-accordion--open' : ''}`}>
+                    <button type="button" className="lesson-accordion__header" onClick={() => toggleAccordion(lesson.id)}>
+                      <span className="lesson-accordion__title">
+                        <span>{lesson.title || 'Sin título'}</span>
+                        <span className="lesson-accordion__duration">({lesson.duration || '0m'})</span>
+                      </span>
+                      <span className="lesson-accordion__meta">
+                        <span>Día {Number.isFinite(Number(lesson.dayUnlock)) ? Number(lesson.dayUnlock) : 0}</span>
+                        {isOpen ? <ChevronUp size={18} color="var(--text2)" /> : <ChevronDown size={18} color="var(--text2)" />}
+                      </span>
+                    </button>
+
+                    <div className="lesson-accordion__body">
+                      <div className="lesson-accordion__content">
+                        <div className="admin-lesson-fields">
+                          <input
+                            value={lesson.title || ''}
+                            onChange={event => updateLesson(course.id, lesson.id, { title: event.target.value })}
+                            placeholder="Título de la clase"
+                          />
+                          <textarea
+                            value={lesson.description || ''}
+                            onChange={event => updateLesson(course.id, lesson.id, { description: event.target.value })}
+                            placeholder="Descripción..."
+                          />
+
+                          <div className="admin-lesson-inline">
+                            <label>
+                              <span>Día liberación</span>
+                              <input
+                                type="number"
+                                value={Number.isFinite(Number(lesson.dayUnlock)) ? Number(lesson.dayUnlock) : 0}
+                                onChange={event => updateLesson(course.id, lesson.id, { dayUnlock: Number(event.target.value) })}
+                              />
+                            </label>
+                            <label className="admin-url-field">
+                              <span>YouTube URL</span>
+                              <input
+                                type="text"
+                                value={lessonYoutubeUrl}
+                                onChange={event => updateLessonVideoUrl(course.id, lesson.id, event.target.value)}
+                                placeholder="URL o ID del video"
+                              />
+                              {lessonYoutubeUrl.includes('/embed/') && <strong><Check size={12} /> OK</strong>}
+                            </label>
                           </div>
-                        ))}
+
+                          <div className="admin-materials">
+                            <div className="admin-materials__title">Materiales:</div>
+                            {lessonMaterials.length === 0 && <div className="admin-empty">Ninguno</div>}
+                            {lessonMaterials.map((mat, idx) => {
+                              const hasPersistentUrl = mat.url && !mat.url.startsWith('blob:');
+                              return (
+                                <div key={`${mat.name}-${idx}`} className="admin-material-item">
+                                  <span><FileText size={12} color="var(--accent)" /> {mat.name || `Material ${idx + 1}`}</span>
+                                  {!hasPersistentUrl && <small>Sesión</small>}
+                                  <button type="button" aria-label={`Eliminar ${mat.name || 'material'}`} onClick={() => deleteMaterial(course.id, lesson.id, idx)}>
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="admin-lesson-actions">
+                          <button className="btn btn--ghost" onClick={() => { setEditingCourseId(course.id); setEditingLessonId(lesson.id); videoInputRef.current?.click(); }}>
+                            <Upload size={14} /> Subir Video
+                          </button>
+                          <button className="btn btn--ghost" onClick={() => { setEditingCourseId(course.id); setEditingLessonId(lesson.id); materialInputRef.current?.click(); }}>
+                            <Plus size={14} /> Material
+                          </button>
+                          <button className="btn btn--ghost admin-danger-btn" onClick={() => deleteLesson(course.id, lesson.id)}>
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '150px' }}>
-                      <button className="btn btn--ghost" style={{ height: '34px', fontSize: '0.75rem' }} onClick={(e) => { e.stopPropagation(); setEditingCourseId(course.id); setEditingLessonId(lesson.id); videoInputRef.current.click(); }}><Upload size={14} /> Subir Video</button>
-                      <button className="btn btn--ghost" style={{ height: '34px', fontSize: '0.75rem' }} onClick={(e) => { e.stopPropagation(); setEditingCourseId(course.id); setEditingLessonId(lesson.id); materialInputRef.current.click(); }}><Plus size={14} /> Material</button>
-                      <button className="btn btn--ghost" style={{ height: '34px', fontSize: '0.75rem', color: '#EF4444', borderColor: 'rgba(239,68,68,0.2)' }} onClick={(e) => { e.stopPropagation(); deleteLesson(course.id, lesson.id); }}><Trash2 size={14} /> Eliminar</button>
-                    </div>
                   </div>
+                );
+              })}
+
+              <div className="admin-add-lesson">
+                <h4>+ Añadir Clase</h4>
+                <div className="admin-add-lesson__grid">
+                  <input
+                    placeholder="Título..."
+                    value={draft.title}
+                    onChange={event => updateDraft(course.id, { title: event.target.value })}
+                  />
+                  <input
+                    placeholder="Descripción..."
+                    value={draft.description}
+                    onChange={event => updateDraft(course.id, { description: event.target.value })}
+                  />
+                  <label>
+                    <span>Día</span>
+                    <input
+                      type="number"
+                      value={draft.dayUnlock}
+                      onChange={event => updateDraft(course.id, { dayUnlock: event.target.value })}
+                    />
+                  </label>
+                  <button className="btn btn--primary" onClick={() => createLesson(course.id)}>
+                    <Plus size={16} /> Crear
+                  </button>
                 </div>
               </div>
-            );})}
-            <div style={{ marginTop: '1.5rem', padding: '1.25rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
-              <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.75rem' }}>+ Añadir Clase</h4>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <input placeholder="Título..." value={newTitle} onChange={e => setNewTitle(e.target.value)} style={{ flex: 1, minWidth: '200px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', padding: '0.6rem 0.85rem', color: 'white', borderRadius: '6px', outline: 'none' }} />
-                <label style={{ fontSize: '0.8rem', color: 'var(--text3)' }}>Día: <input type="number" value={newDay} onChange={e => setNewDay(e.target.value)} style={{ width: '50px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'white', padding: '6px 8px', borderRadius: '4px', outline: 'none' }} /></label>
-                <button className="btn btn--primary" style={{ width: 'auto', padding: '0.6rem 1.25rem' }} onClick={() => createLesson(course.id)}>Crear</button>
-              </div>
             </div>
-          </div>
-        </div>
-      ))}
+          </section>
+        );
+      })}
 
       {toast && <div className="toast">{toast}</div>}
     </div>
