@@ -5,3 +5,4 @@ dist/
 .env
 aiox-core/
 qa-*.png
+supabase/.temp/

@@ -228,7 +228,10 @@ export async function loadCoursesMeta() {
       return loadLocalCoursesMeta();
     }
 
-    return data?.data ? normalizeCoursesMeta(data.data) : loadLocalCoursesMeta();
+    const remoteCourses = Array.isArray(data?.data) ? normalizeCoursesMeta(data.data) : null;
+    if (remoteCourses?.length > 0) return remoteCourses;
+
+    return loadLocalCoursesMeta() || remoteCourses || [];
   } catch (err) {
     logCoursesMetaFallback('No fue posible cargar courses_meta desde Supabase', err);
     return loadLocalCoursesMeta();
